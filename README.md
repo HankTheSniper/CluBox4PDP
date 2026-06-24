@@ -12,8 +12,8 @@
 2. [Project Architecture](#project-architecture)
 3. [Core Algorithm: CluBox](#core-algorithm-clubox)
 4. [Repository Structure](#repository-structure)
-5. [Subsystem 1: CluBox4PDP — DPDK Real-Time Detection](#subsystem-1-clubox4pdp--dpdk-real-time-detection)
-6. [Subsystem 2: CSVFlowSimu — Offline Simulation &amp; Validation](#subsystem-2-csvflowsimu--offline-simulation--validation)
+5. [Subsystem 1: CSVFlowSimu — Offline Simulation &amp; Validation](#subsystem-1-csvflowsimu--offline-simulation--validation)
+6. [Subsystem 2: CluBox4PDP — DPDK Real-Time Detection](#subsystem-2-clubox4pdp--dpdk-real-time-detection)
 7. [Key Design Decisions](#key-design-decisions)
 8. [Build &amp; Run](#build--run)
 9. [Evaluation &amp; Baselines](#evaluation--baselines)
@@ -187,61 +187,125 @@ CluBox4PDP/
 │   Methodwith Programmable Data
 │   Plane.pdf
 │
-├── CluBox4PDP/                        # Phase 2: DPDK Online Detection System
-│   ├── meson.build                    # Meson build configuration
-│   ├── meson_options.txt              # Build options (pcap rate-limit)
+├── CSVFlowSimu/                       # Phase 1: Offline Simulation & Validation
+│   ├── main.c                         # Simulator entry point
 │   │
-│   ├── main.c                         # Entry point: port init, control plane loop
-│   ├── clubox.h                       # CluBox clustering API & inline helpers
-│   ├── clubox.c                       # CluBox clustering implementation
-│   ├── pseudo_flow.h                  # Pseudo-flow table & feature extraction
-│   ├── pseudo_flow.c                  # Flow management (DPDK hash table)
-│   ├── dissectors.h                   # Packet dissector API
-│   ├── dissectors.c                   # Ethernet/IP/TCP/UDP header parsing
-│   ├── box_classifier.h               # Box classification interface
-│   ├── box_classifier.c               # DT spatial + LR meta classifier
-│   ├── stack.h                        # Sequential stack (for BFS clustering)
+│   ├── clubox/                        # Clustering library (Windows-compatible)
+│   │   ├── clubox.h                   # Full CluBox API (DBSCAN variants)
+│   │   ├── clubox.c                   # FlowDBScan*, box ops, classifier
+│   │   └── stack.h                    # Sequential stack (2M capacity)
 │   │
-│   ├── gen_ddos_pcap.py               # Generate DDoS simulation PCAP
-│   ├── gen_benign_pcap.py             # Generate benign-only PCAP
-│   ├── train_classifier.py            # Train DT & LR from cluster_boxes CSV
-│   ├── compare_baselines.py           # Compare vs Poseidon/Jaqen/ACC-Turbo
-│   ├── calc_drop_reject.py            # Calculate rejection & drop rates
-│   ├── plot_flow_comparison.py        # 1×4 flow comparison visualization
-│   ├── plot_linerate_main.py          # Throughput comparison plot
-│   └── plot_throughput_clubox.py      # Single-run throughput + latency plot
+│   ├── simu/                          # Traffic simulation framework
+│   │   ├── simu.h                     # Data loading, sampling, slicing API
+│   │   └── simu.c                     # CSV parsing, sampling, slice management
+│   │
+│   └── data/                          # Data processing pipeline
+│       ├── data_original/             # Raw CSV flow data
+│       │   └── heads_space_delete.py  # CSV header cleaner
+│       ├── clean_samples.py           # Feature extraction & sampling
+│       ├── data_processed/            # Processed CSV files
+│       └── result/                    # Visualization & analysis
+│           ├── cm/
+│           │   └── draw_cm.py         # Confusion matrix visualization
+│           ├── draw_label_points.py   # Ground truth scatter plots
+│           └── purity.py              # Cluster purity analysis
 │
-└── CSVFlowSimu/                       # Phase 1: Offline Simulation & Validation
-    ├── main.c                         # Simulator entry point
+└── CluBox4PDP/                        # Phase 2: DPDK Online Deployment
+    ├── meson.build                    # Meson build configuration
+    ├── meson_options.txt              # Build options (pcap rate-limit)
     │
-    ├── clubox/                        # Clustering library (Windows-compatible)
-    │   ├── clubox.h                   # Full CluBox API (DBSCAN variants)
-    │   ├── clubox.c                   # FlowDBScan*, box ops, classifier
-    │   └── stack.h                    # Sequential stack (2M capacity)
+    ├── main.c                         # Entry point: port init, control plane loop
+    ├── clubox.h                       # CluBox clustering API & inline helpers
+    ├── clubox.c                       # CluBox clustering implementation
+    ├── pseudo_flow.h                  # Pseudo-flow table & feature extraction
+    ├── pseudo_flow.c                  # Flow management (DPDK hash table)
+    ├── dissectors.h                   # Packet dissector API
+    ├── dissectors.c                   # Ethernet/IP/TCP/UDP header parsing
+    ├── box_classifier.h               # Box classification interface
+    ├── box_classifier.c               # DT spatial + LR meta classifier
+    ├── stack.h                        # Sequential stack (for BFS clustering)
     │
-    ├── simu/                          # Traffic simulation framework
-    │   ├── simu.h                     # Data loading, sampling, slicing API
-    │   └── simu.c                     # CSV parsing, sampling, slice management
-    │
-    └── data/                          # Data processing pipeline
-        ├── data_original/             # Raw CSV flow data
-        │   └── heads_space_delete.py  # CSV header cleaner
-        ├── clean_samples.py           # Feature extraction & sampling
-        ├── data_processed/            # Processed CSV files
-        └── result/                    # Visualization & analysis
-            ├── cm/
-            │   └── draw_cm.py         # Confusion matrix visualization
-            ├── draw_label_points.py   # Ground truth scatter plots
-            └── purity.py              # Cluster purity analysis
+    ├── gen_ddos_pcap.py               # Generate DDoS simulation PCAP
+    ├── gen_benign_pcap.py             # Generate benign-only PCAP
+    ├── train_classifier.py            # Train DT & LR from cluster_boxes CSV
+    ├── compare_baselines.py           # Compare vs Poseidon/Jaqen/ACC-Turbo
+    ├── calc_drop_reject.py            # Calculate rejection & drop rates
+    ├── plot_flow_comparison.py        # 1×4 flow comparison visualization
+    ├── plot_linerate_main.py          # Throughput comparison plot
+    └── plot_throughput_clubox.py      # Single-run throughput + latency plot
 ```
 
 ---
 
-## Subsystem 1: CluBox4PDP — DPDK Real-Time Detection
+## Subsystem 1: CSVFlowSimu — Offline Simulation & Validation
 
 ### Overview
 
-The production-ready online detection system built on **DPDK** (Data Plane Development Kit). It processes packets at line rate, extracts flow features from the first 3 packets of each flow, classifies flows using the CluBox bounding-box model, and adaptively reclusters when traffic patterns change.
+A Windows-based offline simulator for rapid algorithm prototyping, parameter tuning, and classifier training. It reads CSV flow data, simulates time-sliced traffic patterns, applies the CluBox algorithm, and evaluates detection performance.
+
+### Traffic Slicing Scheme
+
+The simulator uses a **letter-based traffic composition language**:
+
+```
+Input:  aaaaa/aaab/aaabbb/abbbbbb/bbbbbbbbbb/bbbbbbbbbb/aaab/aaaaa
+
+  a = BENIGN class    b = DDoS class
+  / = time slice boundary
+  Repeat count = number of flows × TRAFFIC_SAMPLE_RATE
+```
+
+This models:
+
+1. Benign stable (aaaaa)
+2. Attack ramp-up (aaab → aaabbb → abbbbbb)
+3. Sustained attack (bbbbbbbbbb)
+4. Attack taper (aaab → aaaaa)
+
+### DBSCAN Variants
+
+| Function                | Description                                        |
+| ----------------------- | -------------------------------------------------- |
+| `FlowDBScanFloat`     | Basic DBSCAN, O(n²) per BFS neighbor check        |
+| `FlowDBScanFloatPro`  | Optimized: pre-computed neighbor lists, faster BFS |
+| `FlowDBScanFloatFast` | Flat-array variant (for DPDK data layout)          |
+| `FlowDBScanInt`       | Integer feature variant                            |
+
+### Box Lifecycle Management
+
+The offline simulator implements **life-counter-based box aging** (`BOX_LIVES = 20`):
+
+- Boxes with zero flows in a window lose one life
+- Boxes at zero lives are permanently deleted
+- Boxes with sufficient flows regain full life
+- This prevents stale clusters from accumulating over time
+
+### Classifier Training Pipeline
+
+1. Run CSVFlowSimu to generate `cluster_boxes_*.csv` files
+2. Use `train_classifier.py` to train:
+   - **Decision Tree** (max_depth=5) on spatial features `[min_f0, max_f0, min_f1_us, max_f1_us]`
+   - **Logistic Regression** on meta features `[box_ratio, box_ratio², box_volume, delta_points]`
+3. Copy trained weights into `box_classifier.c` (for DPDK system)
+
+### Key Differences from Online System
+
+| Aspect             | CSVFlowSimu (Offline)                       | CluBox4PDP (Online)                |
+| ------------------ | ------------------------------------------- | ---------------------------------- |
+| Platform           | Windows (MSVC/MinGW)                        | Linux + DPDK                       |
+| Data Source        | Pre-collected CSV files                     | Live NIC / PCAP replay             |
+| Clustering Trigger | Fixed interval (5,000 flows)                | Adaptive (outlier rate > 8%)       |
+| Box Lifecycle      | Life counter + deletion                     | Replace on recluster               |
+| Feature Norm       | `12.77 × x^0.3` / `75 × log₁₀(x+1)` | Same transform, applied per-window |
+| Memory Model       | Heap (`malloc/calloc`)                    | DPDK hugepages (`rte_malloc`)    |
+
+---
+
+## Subsystem 2: CluBox4PDP — DPDK Real-Time Deployment
+
+### Overview
+
+The production-ready online detection system built on **DPDK** (Data Plane Development Kit). It takes the algorithm validated in CSVFlowSimu and deploys it as a real-time packet-processing pipeline — processing packets at line rate, extracting flow features from the first 3 packets of each flow, classifying flows using the CluBox bounding-box model, and adaptively reclustering when traffic patterns change.
 
 ### Key Components
 
@@ -294,61 +358,6 @@ The production-ready online detection system built on **DPDK** (Data Plane Devel
 
 ---
 
-## Subsystem 2: CSVFlowSimu — Offline Simulation & Validation
-
-### Overview
-
-A Windows-based offline simulator for rapid algorithm prototyping, parameter tuning, and classifier training. It reads CSV flow data, simulates time-sliced traffic patterns, applies the CluBox algorithm, and evaluates detection performance.
-
-### Key Differences from Online System
-
-| Aspect             | CSVFlowSimu (Offline)                       | CluBox4PDP (Online)                |
-| ------------------ | ------------------------------------------- | ---------------------------------- |
-| Platform           | Windows (MSVC/MinGW)                        | Linux + DPDK                       |
-| Data Source        | Pre-collected CSV files                     | Live NIC / PCAP replay             |
-| Clustering Trigger | Fixed interval (5,000 flows)                | Adaptive (outlier rate > 8%)       |
-| Box Lifecycle      | Life counter + deletion                     | Replace on recluster               |
-| Feature Norm       | `12.77 × x^0.3` / `75 × log₁₀(x+1)` | Same transform, applied per-window |
-| Memory Model       | Heap (`malloc/calloc`)                    | DPDK hugepages (`rte_malloc`)    |
-
-### Traffic Slicing Scheme
-
-The simulator uses a **letter-based traffic composition language**:
-
-```
-Input:  aaaaa/aaab/aaabbb/abbbbbb/bbbbbbbbbb/bbbbbbbbbb/aaab/aaaaa
-
-  a = BENIGN class    b = DDoS class
-  / = time slice boundary
-  Repeat count = number of flows × TRAFFIC_SAMPLE_RATE
-```
-
-This models:
-
-1. Benign stable (aaaaa)
-2. Attack ramp-up (aaab → aaabbb → abbbbbb)
-3. Sustained attack (bbbbbbbbbb)
-4. Attack taper (aaab → aaaaa)
-
-### DBSCAN Variants
-
-| Function                | Description                                        |
-| ----------------------- | -------------------------------------------------- |
-| `FlowDBScanFloat`     | Basic DBSCAN, O(n²) per BFS neighbor check        |
-| `FlowDBScanFloatPro`  | Optimized: pre-computed neighbor lists, faster BFS |
-| `FlowDBScanFloatFast` | Flat-array variant (for DPDK data layout)          |
-| `FlowDBScanInt`       | Integer feature variant                            |
-
-### Classifier Training Pipeline
-
-1. Run CSVFlowSimu to generate `cluster_boxes_*.csv` files
-2. Use `train_classifier.py` to train:
-   - **Decision Tree** (max_depth=5) on spatial features `[min_f0, max_f0, min_f1_us, max_f1_us]`
-   - **Logistic Regression** on meta features `[box_ratio, box_ratio², box_volume, delta_points]`
-3. Copy trained weights into `box_classifier.c` (for DPDK system)
-
----
-
 ## Key Design Decisions
 
 ### Why Manhattan Distance?
@@ -387,7 +396,39 @@ Raw packet lengths (64–1514) and IATs (0–200,000 µs) span orders of magnitu
 
 ## Build & Run
 
-### CluBox4PDP (DPDK Online System)
+### CSVFlowSimu (Offline Simulator)
+
+**Prerequisites**:
+
+- Windows with MinGW or MSVC
+- Python 3 with pandas, numpy, matplotlib, scikit-learn, seaborn
+
+```bash
+cd CSVFlowSimu/
+
+# Compile
+gcc -O2 main.c clubox/clubox.c simu/simu.c -o csvflowsimu -lm
+
+# Run
+./csvflowsimu
+
+# Input traffic pattern when prompted:
+# e.g.: aaaaa/aaab/aaabbb/abbbbbb/bbbbbbbbbb/bbbbbbbbbb/aaab/aaaaa
+```
+
+Output CSV files are written to `data/new_result/` (per-point and per-box CSVs) and `data/result/cm/cm.csv` (per-slice confusion matrices).
+
+### Train Classifier from Output
+
+After running CSVFlowSimu, train the classifier models for deployment:
+
+```bash
+cd CluBox4PDP/
+python3 train_classifier.py --threshold 0.5 --max-depth 5
+# Copy printed C code into box_classifier.c and box_classifier.h
+```
+
+### CluBox4PDP (DPDK Online Deployment)
 
 **Prerequisites**:
 
@@ -412,9 +453,11 @@ meson configure -Dpcap_ratelimit=false build
 ninja -C build
 ```
 
-### Generate Test Traffic
+### Generate Test PCAP Traffic
 
 ```bash
+cd CluBox4PDP/
+
 # Single-source DDoS (fixed attacker IP)
 python3 gen_ddos_pcap.py --mode single
 
@@ -423,34 +466,6 @@ python3 gen_ddos_pcap.py --mode distributed
 
 # Pure benign traffic (throughput baseline)
 python3 gen_benign_pcap.py --flows 150000
-```
-
-### CSVFlowSimu (Offline Simulator)
-
-**Prerequisites**:
-
-- Windows with MinGW or MSVC
-- Python 3 with pandas, numpy, matplotlib, scikit-learn, seaborn
-
-```bash
-cd CSVFlowSimu/
-
-# Compile
-gcc -O2 main.c clubox/clubox.c simu/simu.c -o csvflowsimu -lm
-
-# Run
-./csvflowsimu
-
-# Input traffic pattern when prompted:
-# e.g.: aaaaa/aaab/aaabbb/abbbbbb/bbbbbbbbbb/bbbbbbbbbb/aaab/aaaaa
-```
-
-### Train Classifier from Output
-
-```bash
-cd CluBox4PDP/
-python3 train_classifier.py --threshold 0.5 --max-depth 5
-# Copy printed C code into box_classifier.c
 ```
 
 ---
@@ -513,6 +528,16 @@ python3 plot_linerate_main.py --out linerate_combined.png
 
 ## Output Artifacts
 
+CSVFlowSimu outputs to:
+
+```
+CSVFlowSimu/data/result/
+├── cm/cm.csv                # Per-slice confusion matrices + aggregate
+└── new_result/
+    ├── *_dbscan_*_points.csv # Per-point cluster assignments
+    └── *_dbscan_*_boxes.csv  # Box definitions
+```
+
 Each DPDK run produces a timestamped output directory:
 
 ```
@@ -524,16 +549,6 @@ output_YYYYMMDD_HHMMSS/
 ├── ...
 ├── timing.csv               # window_id, cluster_us, eval_us, total_us, box_count, is_recluster
 └── results.csv              # window_id, cm_tp, cm_tn, cm_fp, cm_fn, mpps, gbps
-```
-
-CSVFlowSimu outputs to:
-
-```
-CSVFlowSimu/data/result/
-├── cm/cm.csv                # Per-slice confusion matrices + aggregate
-└── new_result/
-    ├── *_dbscan_*_points.csv # Per-point cluster assignments
-    └── *_dbscan_*_boxes.csv  # Box definitions
 ```
 
 ---

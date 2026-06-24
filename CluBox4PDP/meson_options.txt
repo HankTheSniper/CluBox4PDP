@@ -1,0 +1,2 @@
+option('pcap_ratelimit', type: 'boolean', value: false,
+    description: 'Add 1ms delay per RX burst to rate-limit pcap replay (training mode only)')
